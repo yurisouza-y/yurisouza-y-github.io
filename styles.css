@@ -1,6 +1,9 @@
-/* Estilos Customizados para Sistema Financeiro Commit JR */
+/*
+ * Arquivo: style.css
+ * Contém estilos CSS personalizados que não podem ser expressos diretamente com Tailwind classes.
+ */
 
-/* SCROLLBAR CUSTOMIZADO */
+/* Personalizações extras (Barra de Rolagem Customizada) */
 .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
 }
@@ -15,12 +18,10 @@
     background: #94a3b8;
 }
 
-/* PLANO DE FUNDO DO CORPO DA PÁGINA */
+/* Fundo da página e Transição para barras de gráfico */
 body {
-    background-color: #f5f7fa; /* Cinza claro */
+    background-color: #f8fafc;
 }
-
-/* TRANSIÇÃO PARA BARRAS DO GRÁFICO */
 .chart-bar {
     transition: height 0.5s ease-out, background-color 0.3s;
 }
