@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Financeiro Commit JR - Compartilhado</title>
+    
+    <!-- Tailwind CSS (Estilo) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 🎨 CONFIGURAÇÃO DE CORES PERSONALIZADAS TAILWIND -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-dark': '#0B375B',       // Azul Escuro (Principal)
+                        'primary-light': '#1A82D9',      // Azul Claro (Destaque/Hover)
+                        'accent-yellow': '#FAC835',      // Amarelo (Acento neutro/Total)
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- 🎨 FIM CONFIGURAÇÃO TAILWIND -->
+    
+    <!-- NOVO: Link para o arquivo CSS externo -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- React e ReactDOM (Motor da Aplicação) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (Para entender o código React no navegador) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Ícones Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- 🚀 SCRIPTS E CONFIGURAÇÃO DO FIREBASE 🚀 -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+
+    <!-- Configuração da conexão com o SEU projeto -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCasLIhPZ-eu_wisn0fNzNVEymGUouJaS0",
+            authDomain: "minhas-finacas.firebaseapp.com",
+            projectId: "minhas-finacas",
+            storageBucket: "minhas-finacas.firebasestorage.app",
+            messagingSenderId: "1056339749032",
+            appId: "1:1056339749032:web:375d2b01c4cba2a32efa9d"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+    </script>
+    <!-- 🚀 FIM FIREBASE CONFIG 🚀 -->
+    
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const Icon = ({ name, size = 20, className = "" }) => <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+        
+        // --- LOGO EXTERNO (GitHub) ---
+        const LOGO_URL = "./araralogo.png"; 
+
+        const { useState, useEffect, useMemo, useCallback } = React;
+        
+        // --- FUNÇÕES GLOBAIS DE UTILIDADE ---
+        const getMonthDifference = (startMonth, startYear, endMonth, endYear) => 
+            (endYear - startYear) * 12 + (endMonth - startMonth);
+        const getStatusKey = (id, index) => `${id}_${index}`;
+        const getMonthName = (month) => {
+            const date = new Date(2000, month - 1, 1);
+            return date.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase();
+        };
+
+        // Função para salvar dados no documento ESPECÍFICO (agora compartilhado)
+        const saveDataToFirebase = (userRef, newDividas, newRecebimentos, newPagamentos, newRecebimentoStatus) => {
+            if (!userRef) return;
+            userRef.set({
+                dividas: newDividas,
+                recebimentos: newRecebimentos, 
+                pagamentos: newPagamentos,
+                recebimentoStatus: newRecebimentoStatus,
+            }).catch(error => {
+                console.error("Erro ao salvar no Firebase:", error);
+                // Não usamos alert(), mas é bom registrar o erro
+            });
+        };
+
+        // --- Componente para Configurar o ID do Grupo Compartilhado ---
+        const SharedIdInput = ({ sharedAccessId, setSharedAccessId }) => {
+            const [newId, setNewId] = useState(sharedAccessId);
+            const [isEditing, setIsEditing] = useState(false);
+
+            const handleSave = (e) => {
+                e.preventDefault();
+                // Limpa o ID para ser seguro para o Firestore
+                const cleanId = newId.trim().toLowerCase().replace(/[^a-z0-9_]/g, ''); 
+                if (cleanId) {
+                    setSharedAccessId(cleanId);
+                    localStorage.setItem('minhas_financas_shared_id', cleanId); // Salva no local storage
+                } else {
+                    setNewId(sharedAccessId);
+                }
+                setIsEditing(false);
+            };
+
+            return (
+                <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                    <Icon name="users" size={16} className="text-gray-500"/>
+                    {!isEditing ? (
+                        <>
+                            <span className="text-xs font-medium text-gray-700 truncate">Grupo: <span className="text-primary-dark font-bold">{sharedAccessId}</span></span>
+                            <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary-dark">
+                                <Icon name="pencil" size={14}/>
+                            </button>
+                        </>
+                    ) : (
+                        <form onSubmit={handleSave} className="flex gap-1">
+                            <input 
+                                type="text" 
+                                value={newId} 
+                                onChange={e => setNewId(e.target.value)}
+                                placeholder="ID do Grupo"
+                                className="px-1 py-0.5 text-xs border rounded w-32 focus:outline-none focus:border-primary-light"
+                            />
+                            <button type="submit" className="text-white bg-primary-dark hover:bg-primary-light px-2 py-0.5 rounded text-xs">Salvar</button>
+                        </form>
+                    )}
+                </div>
+            );
+        };
+        // --- FIM SharedIdInput ---
+
+
+        // --- COMPONENTE: AuthScreen (Tela de Login/Cadastro) ---
+        const AuthScreen = ({}) => {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [isLogin, setIsLogin] = useState(true);
+            const [error, setError] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                setError('');
+                setIsLoading(true);
+
+                try {
+                    if (isLogin) {
+                        await auth.signInWithEmailAndPassword(email, password);
+                    } else {
+                        await auth.createUserWithEmailAndPassword(email, password);
+                    }
+                } catch (err) {
+                    let msg = "Ocorreu um erro de autenticação.";
+                    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+                        msg = "E-mail ou senha inválidos.";
+                    } else if (err.code === 'auth/email-already-in-use') {
+                        msg = "Este e-mail já está em uso.";
+                    } else if (err.code === 'auth/weak-password') {
+                        msg = "A senha deve ter pelo menos 6 caracteres.";
+                    }
+                    setError(msg);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-primary-dark/20">
+                        <div className="p-6 bg-primary-dark text-white flex flex-col items-center">
+                            {/* LOGO MAIOR NA TELA DE LOGIN */}
+                            <div className="w-16 h-16 mb-2">
+                                <img 
+                                    src={LOGO_URL} 
+                                    alt="Logo Commit JR" 
+                                    className="w-full h-full object-contain"
+                                    onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/64x64/0B375B/FFFFFF?text=JR"; }}
+                                />
+                            </div>
+                            {/* FIM LOGO */}
+
+                            <h1 className="text-3xl font-bold">Sistema Financeiro <span className="text-accent-yellow">Commit JR</span></h1>
+                            <p className="mt-1 text-sm opacity-80">Acesso Compartilhado</p>
+                        </div>
+                        <form onSubmit={handleAuth} className="p-8 space-y-5">
+                            <h2 className="text-xl font-semibold text-gray-800 text-center">{isLogin ? 'Fazer Login' : 'Criar Conta'}</h2>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                                <input 
+                                    type="email" 
+                                    required 
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-primary-light transition" 
+                                    value={email} 
+                                    onChange={e => setEmail(e.target.value)} 
+                                    placeholder="seu@email.com"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                                <input 
+                                    type="password" 
+                                    required 
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-primary-light transition" 
+                                    value={password} 
+                                    onChange={e => setPassword(e.target.value)}
+                                    placeholder="Mínimo 6 caracteres"
+                                />
+                            </div>
+                            
+                            {error && <div className="p-2 bg-red-100 text-red-700 rounded-lg text-sm">{error}</div>}
+
+                            <button 
+                                type="submit" 
+                                disabled={isLoading}
+                                className={`w-full px-4 py-3 rounded-lg text-white font-semibold transition-colors flex items-center justify-center gap-2 ${isLoading ? 'bg-primary-dark/70 cursor-not-allowed' : 'bg-primary-dark hover:bg-primary-light'}`}>
+                                {isLoading && <Icon name="loader-2" size={16} className="animate-spin" />}
+                                {isLogin ? 'Entrar' : 'Cadastrar'}
+                            </button>
+
+                            <button 
+                                type="button" 
+                                onClick={() => setIsLogin(!isLogin)}
+                                className="w-full text-sm text-primary-dark hover:text-primary-light transition mt-3">
+                                {isLogin ? 'Não tem uma conta? Cadastre-se' : 'Já tem conta? Faça Login'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- COMPONENTE: PlanilhaView (Nova Tela) ---
+        const PlanilhaView = ({ movimentacoes, excluirDivida, toggleStatus, isDataLoading }) => {
+            
+            // 1. Calcular Saldo Acumulado Mês a Mês para o Gráfico
+            const chartData = useMemo(() => {
+                if(isDataLoading) return { chartArray: [], maxAbsValue: 0 }; // Evita cálculo desnecessário
+                
+                const today = new Date();
+                const currentMonthIndex = today.getMonth() + 1;
+                const currentYear = today.getFullYear();
+                
+                const monthlyData = {};
+                const maxMonthsToShow = 12; 
+                let cumulativeBalance = 0;
+                let maxAbsValue = 0;
+
+                let startYear = currentYear;
+                let startMonth = currentMonthIndex;
+                
+                movimentacoes.allMovimentacoes.forEach(item => {
+                    if (item.parcelaAno < startYear || (item.parcelaAno === startYear && item.parcelaMes < startMonth)) {
+                        startYear = item.parcelaAno;
+                        startMonth = item.parcelaMes;
+                    }
+                });
+
+                const totalMonths = getMonthDifference(startMonth, startYear, currentMonthIndex, currentYear) + 1;
+                const effectiveStartMonth = totalMonths > maxMonthsToShow 
+                    ? currentMonthIndex - (maxMonthsToShow - 1) 
+                    : startMonth;
+                const effectiveStartYear = totalMonths > maxMonthsToShow 
+                    ? currentYear - Math.floor((maxMonthsToShow - 1) / 12)
+                    : startYear;
+
+                const todayYear = today.getFullYear();
+                const todayMonth = today.getMonth() + 1;
+                
+                for (let i = 0; i < totalMonths; i++) {
+                    let year = effectiveStartYear;
+                    let month = effectiveStartMonth + i;
+                    while (month > 12) {
+                        month -= 12;
+                        year += 1;
+                    }
+                    
+                    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+                    monthlyData[monthKey] = { receitas: 0, despesas: 0, saldo: 0, month, year };
+                    
+                    if (year > todayYear || (year === todayYear && month > todayMonth)) break;
+                }
+                
+
+                movimentacoes.allMovimentacoes.forEach(item => {
+                    const key = `${item.parcelaAno}-${String(item.parcelaMes).padStart(2, '0')}`;
+                    
+                    if (monthlyData[key] && item.estaPago) {
+                        if (item.tipo === 'recebimento') {
+                            monthlyData[key].receitas += item.valor;
+                        } else {
+                            monthlyData[key].despesas += item.valor;
+                        }
+                    }
+                });
+                
+                const chartArray = Object.values(monthlyData);
+                
+                chartArray.forEach(data => {
+                    data.saldo = data.receitas - data.despesas;
+                    cumulativeBalance += data.saldo;
+                    data.cumulativeBalance = cumulativeBalance;
+                    maxAbsValue = Math.max(maxAbsValue, Math.abs(data.cumulativeBalance));
+                });
+
+                return { chartArray, maxAbsValue };
+                
+            }, [movimentacoes, isDataLoading]);
+            
+            // 2. Tabela de Movimentações
+            const tableItems = movimentacoes.allMovimentacoes.slice().reverse();
+
+            // Normalização para o gráfico
+            const maxChartHeight = 200;
+            const normalizedChartData = chartData.chartArray.map(data => ({
+                ...data,
+                normalizedHeight: chartData.maxAbsValue > 0 
+                    ? Math.abs(data.cumulativeBalance) / chartData.maxAbsValue * maxChartHeight 
+                    : 0,
+                isPositive: data.cumulativeBalance >= 0
+            }));
+
+            if (isDataLoading) {
+                return (
+                    <div className="text-center py-20">
+                        <Icon name="loader-2" size={48} className="text-primary-dark animate-spin mx-auto mb-4" />
+                        <p className="text-gray-600">Carregando dados da planilha...</p>
+                    </div>
+                );
+            }
+            
+            return (
+                <div className="space-y-6">
+                    {/* Saldo Atual (Caixa) */}
+                    <div className={`p-6 rounded-xl border shadow-lg transition-colors ${movimentacoes.totalRealizado >= 0 ? 'bg-green-100 border-green-200' : 'bg-red-100 border-red-200'}`}>
+                        <span className="text-xl font-medium uppercase text-gray-700">Caixa Atual (Saldo Realizado)</span>
+                        <div className="text-5xl font-extrabold mt-2" style={{ color: movimentacoes.totalRealizado >= 0 ? '#10B981' : '#EF4444' }}>
+                            R$ {movimentacoes.totalRealizado.toFixed(2)}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">Soma de todas as Receitas Recebidas menos todas as Despesas Pagas até hoje.</p>
+                    </div>
+
+                    {/* Gráfico de Saldo Acumulado */}
+                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                        <h2 className="font-semibold text-gray-700 text-lg mb-4">Gráfico de Saldo Acumulado (Últimos Meses)</h2>
+                        <div className="flex justify-start items-end gap-2 p-2 overflow-x-auto min-h-[250px] relative">
+                            
+                            {/* Linha de Zero */}
+                            <div className="absolute left-0 right-0 border-t border-gray-300 pointer-events-none" style={{ top: `${maxChartHeight / 2}px` }}></div>
+                            <span className="absolute left-0 text-xs text-gray-500" style={{ top: `${maxChartHeight / 2 - 10}px` }}>R$ 0</span>
+
+                            {normalizedChartData.length === 0 ? (
+                                <div className="text-center py-10 w-full text-gray-400">Nenhum dado realizado para o gráfico.</div>
+                            ) : (
+                                normalizedChartData.map((data, index) => (
+                                    <div key={index} className="flex flex-col items-center w-12 flex-shrink-0">
+                                        <div className="relative w-full flex flex-col items-center">
+                                            {/* Espaço abaixo da linha zero (negativo) ou acima (positivo) */}
+                                            <div className={`w-full ${data.isPositive ? 'order-2' : 'order-1'} bg-gray-100`} style={{ height: `${data.isPositive ? maxChartHeight / 2 : maxChartHeight - data.normalizedHeight - (maxChartHeight / 2)}px` }}></div>
+                                            
+                                            {/* Barra Real */}
+                                            <div 
+                                                className={`chart-bar w-full rounded-t-md cursor-pointer group relative hover:opacity-80 ${data.isPositive ? 'bg-green-500 order-1' : 'bg-red-500 order-2'}`} 
+                                                style={{ height: `${data.normalizedHeight / 2}px` }}
+                                                title={`Mês: ${getMonthName(data.month)}/${data.year}\nSaldo Acumulado: R$ ${data.cumulativeBalance.toFixed(2)}`}>
+                                                
+                                                {/* Tooltip */}
+                                                <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 p-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                                    R$ {data.cumulativeBalance.toFixed(2)}
+                                                </span>
+                                            </div>
+
+                                            {/* Espaço acima da linha zero (positivo) ou abaixo (negativo) */}
+                                            <div className={`w-full ${data.isPositive ? 'order-1' : 'order-2'} bg-gray-100`} style={{ height: `${data.isPositive ? maxChartHeight - data.normalizedHeight - (maxChartHeight / 2) : maxChartHeight / 2}px` }}></div>
+                                        </div>
+                                        
+                                        <span className="text-[10px] text-gray-600 mt-1">{getMonthName(data.month)}/{String(data.year).slice(2)}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+
+                    {/* Tabela Detalhada */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200"><h2 className="font-semibold text-gray-700">Tabela de Movimentações (Histórico)</h2></div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mês/Ano</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parcela</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {tableItems.length === 0 ? (
+                                        <tr><td colSpan="7" className="px-6 py-4 text-center text-gray-500">Nenhuma movimentação registrada.</td></tr>
+                                    ) : (
+                                        tableItems.map((item) => {
+                                            const isReceita = item.tipo === 'recebimento';
+                                            const isPago = item.estaPago;
+                                            const statusText = isReceita ? (isPago ? 'Recebido' : 'A Receber') : (isPago ? 'Pago' : 'A Pagar');
+                                            const statusColor = isReceita ? (isPago ? 'text-green-600' : 'text-accent-yellow') : (isPago ? 'text-gray-500' : 'text-red-600');
+                                            const rowClass = isReceita ? 'hover:bg-green-50/50' : 'hover:bg-red-50/50';
+
+                                            return (
+                                                <tr key={`${item.chaveStatus}-${item.id}`} className={rowClass}>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                                        {item.dia}/{item.parcelaMes}/{item.parcelaAno}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${isReceita ? 'bg-primary-dark/10 text-primary-dark' : 'bg-gray-100 text-gray-800'}`}>
+                                                            {isReceita ? 'RECEITA' : 'DESPESA'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{item.nome}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.parcelaAtual}/{item.parcelas}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right" style={{ color: isReceita ? '#10B981' : '#EF4444' }}>
+                                                        {isReceita ? '+' : '-'} R$ {Number(item.valor).toFixed(2)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                                        <span className={`font-medium ${statusColor}`}>{statusText}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium flex gap-2 justify-center">
+                                                        <button 
+                                                            onClick={() => toggleStatus(item.chaveStatus, item.tipo)}
+                                                            title={`Marcar como ${isPago ? 'PENDENTE' : (isReceita ? 'RECEBIDO' : 'PAGO')}`}
+                                                            className={`text-gray-400 hover:text-primary-light`}>
+                                                            <Icon name={isPago ? "minus-circle" : "check-circle"} size={16}/>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => excluirDivida(item.id, item.tipo)}
+                                                            title="Excluir Conta"
+                                                            className="text-gray-400 hover:text-red-500">
+                                                            <Icon name="trash-2" size={16}/>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            );
+        };
+        // --- FIM COMPONENTE: PlanilhaView ---
+
+        function App() {
+            // --- Estado de Autenticação e Dados ---
+            const [user, setUser] = useState(null);
+            const [isAuthReady, setIsAuthReady] = useState(false);
+            const [isDataLoading, setIsDataLoading] = useState(true); // NOVO: Estado de carregamento dos dados
+            
+            // ID de acesso compartilhado: Puxa do localStorage ou usa o padrão
+            const [sharedAccessId, setSharedAccessId] = useState(
+                localStorage.getItem('minhas_financas_shared_id') || 'grupo_principal'
+            ); 
+
+            const [dividas, setDividas] = useState([]);
+            const [recebimentos, setRecebimentos] = useState([]); 
+            const [pagamentos, setPagamentos] = useState({});
+            const [recebimentoStatus, setRecebimentoStatus] = useState({}); 
+            const [viewDate, setViewDate] = useState(new Date());
+            const [showModal, setShowModal] = useState(false);
+            const [view, setView] = useState('calendario'); 
+            
+            const [newConta, setNewConta] = useState({
+                nome: '', valor: '', dia: '', parcelas: '1',
+                mesInicio: new Date().getMonth() + 1,
+                anoInicio: new Date().getFullYear(),
+                tipo: 'divida'
+            });
+
+            // 1. Definição Dinâmica da Referência do Firestore
+            const USER_DOC_REF = user 
+                ? db.collection("shared_finances").doc(sharedAccessId) 
+                : null;
+
+
+            // 🚀 EFEITO 1: Listener de Autenticação (Checa se o usuário está logado)
+            useEffect(() => {
+                const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+                    setUser(currentUser);
+                    setIsAuthReady(true);
+                });
+                return () => unsubscribeAuth();
+            }, []);
+
+            // 🚀 EFEITO 2: Listener do Firestore (Carrega os dados)
+            useEffect(() => {
+                if (!user || !USER_DOC_REF) {
+                    // Limpa os dados se deslogado ou se a referência não estiver pronta
+                    setDividas([]);
+                    setRecebimentos([]);
+                    setPagamentos({});
+                    setRecebimentoStatus({});
+                    setIsDataLoading(false); // Define como não carregando após limpar os dados
+                    return; 
+                }
+
+                setIsDataLoading(true); // Começa a carregar
+                
+                // Carrega os dados do documento específico deste grupo
+                const unsubscribeData = USER_DOC_REF.onSnapshot(doc => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        setDividas(data.dividas || []);
+                        setRecebimentos(data.recebimentos || []);
+                        setPagamentos(data.pagamentos || {});
+                        setRecebimentoStatus(data.recebimentoStatus || {});
+                    } else {
+                        // Se for o primeiro acesso a este ID de grupo, cria o documento inicial
+                        saveDataToFirebase(USER_DOC_REF, [], [], {}, {});
+                    }
+                    lucide.createIcons();
+                    setIsDataLoading(false); // Termina de carregar com sucesso
+                }, (error) => {
+                    console.error("Erro ao carregar dados do Firebase:", error);
+                    alert("ERRO CRÍTICO: Não foi possível carregar os dados. Verifique as Regras de Segurança do Firestore ou a conexão.");
+                    setIsDataLoading(false); // Termina de carregar com erro
+                });
+                
+                return () => unsubscribeData();
+            }, [user, sharedAccessId]); // Depende do user E do ID de Acesso Compartilhado
+            
+            useEffect(() => {
+                lucide.createIcons();
+            }, [dividas, recebimentos, viewDate, showModal, view]);
+
+
+            // --- Lógica de Negócios (Movimentações e Saldo) ---
+            
+            // Funções de Ação (Adaptadas para usar USER_DOC_REF)
+            const changeMonth = useCallback((offset) => {
+                const newDate = new Date(viewDate);
+                newDate.setMonth(newDate.getMonth() + offset);
+                setViewDate(newDate);
+            }, [viewDate]);
+
+            const toggleStatus = useCallback((chave, tipo) => {
+                if (!USER_DOC_REF) return;
+                
+                if (tipo === 'divida') {
+                    setPagamentos(prev => {
+                        const novo = { ...prev };
+                        if (novo[chave]) delete novo[chave];
+                        else novo[chave] = true;
+                        saveDataToFirebase(USER_DOC_REF, dividas, recebimentos, novo, recebimentoStatus); 
+                        return novo;
+                    });
+                } else if (tipo === 'recebimento') {
+                    setRecebimentoStatus(prev => {
+                        const novo = { ...prev };
+                        if (novo[chave]) delete novo[chave];
+                        else novo[chave] = true;
+                        saveDataToFirebase(USER_DOC_REF, dividas, recebimentos, pagamentos, novo); 
+                        return novo;
+                    });
+                }
+            }, [dividas, recebimentos, pagamentos, recebimentoStatus, USER_DOC_REF]);
+
+            const handleAddConta = useCallback((e) => {
+                e.preventDefault();
+                if (!USER_DOC_REF) return;
+                
+                const nova = {
+                    id: Date.now().toString(),
+                    nome: newConta.nome,
+                    valor: parseFloat(newConta.valor),
+                    dia: parseInt(newConta.dia),
+                    parcelas: parseInt(newConta.parcelas),
+                    mesInicio: parseInt(newConta.mesInicio),
+                    anoInicio: parseInt(newConta.anoInicio),
+                };
+                
+                let newDividas = dividas;
+                let newRecebimentos = recebimentos;
+                
+                if (newConta.tipo === 'divida') {
+                    newDividas = [...dividas, nova];
+                } else {
+                    newRecebimentos = [...recebimentos, nova];
+                }
+                
+                setDividas(newDividas);
+                setRecebimentos(newRecebimentos);
+                saveDataToFirebase(USER_DOC_REF, newDividas, newRecebimentos, pagamentos, recebimentoStatus); 
+
+                setShowModal(false);
+                setNewConta({ nome: '', valor: '', dia: '', parcelas: '1', mesInicio: new Date().getMonth() + 1, anoInicio: new Date().getFullYear(), tipo: 'divida' });
+            }, [dividas, recebimentos, pagamentos, recebimentoStatus, newConta, USER_DOC_REF]);
+
+            const excluirDivida = useCallback((id, tipo) => {
+                if (!USER_DOC_REF) return;
+                
+                if (window.confirm(`Deseja realmente excluir este(a) ${tipo === 'divida' ? 'despesa' : 'receita'} e todo o histórico?`)) {
+                    let newDividas = dividas;
+                    let newRecebimentos = recebimentos;
+                    
+                    if (tipo === 'divida') {
+                        newDividas = dividas.filter(d => d.id !== id);
+                        setDividas(newDividas);
+                    } else {
+                        newRecebimentos = recebimentos.filter(r => r.id !== id);
+                        setRecebimentos(newRecebimentos);
+                    }
+                    
+                    saveDataToFirebase(USER_DOC_REF, newDividas, newRecebimentos, pagamentos, recebimentoStatus);
+                }
+            }, [dividas, recebimentos, pagamentos, recebimentoStatus, USER_DOC_REF]);
+            
+            // --- CÓDIGOS DE CÁLCULO ---
+
+            const movimentacoesDoMes = useMemo(() => {
+                if (isDataLoading) return { itens: [], totalDespesasPagas: 0, totalDespesasPendentes: 0, totalReceitasPagas: 0, totalReceitasPendentes: 0, saldo: 0 };
+                
+                const mesAtual = viewDate.getMonth() + 1;
+                const anoAtual = viewDate.getFullYear();
+                
+                const lista = [];
+                let totalDespesasPagas = 0;
+                let totalDespesasPendentes = 0;
+                let totalReceitasPagas = 0;
+                let totalReceitasPendentes = 0;
+
+                dividas.forEach(divida => {
+                    const mesesDiferenca = getMonthDifference(divida.mesInicio, divida.anoInicio, mesAtual, anoAtual);
+                    if (mesesDiferenca >= 0 && mesesDiferenca < divida.parcelas) {
+                        const indiceParcela = mesesDiferenca;
+                        const chavePagamento = getStatusKey(divida.id, indiceParcela);
+                        const estaPago = !!pagamentos[chavePagamento];
+                        if (estaPago) totalDespesasPagas += Number(divida.valor);
+                        else totalDespesasPendentes += Number(divida.valor);
+                        lista.push({ ...divida, tipo: 'divida', parcelaAtual: indiceParcela + 1, estaPago, chaveStatus: chavePagamento });
+                    }
+                });
+
+                recebimentos.forEach(recebimento => {
+                    const mesesDiferenca = getMonthDifference(recebimento.mesInicio, recebimento.anoInicio, mesAtual, anoAtual);
+                    if (mesesDiferenca >= 0 && mesesDiferenca < recebimento.parcelas) {
+                        const indiceParcela = mesesDiferenca;
+                        const chaveRecebimento = getStatusKey(recebimento.id, indiceParcela);
+                        const estaRecebido = !!recebimentoStatus[chaveRecebimento];
+                        if (estaRecebido) totalReceitasPagas += Number(recebimento.valor);
+                        else totalReceitasPendentes += Number(recebimento.valor);
+                        lista.push({ ...recebimento, tipo: 'recebimento', parcelaAtual: indiceParcela + 1, estaPago: estaRecebido, chaveStatus: chaveRecebimento });
+                    }
+                });
+                
+                const saldo = (totalReceitasPagas + totalReceitasPendentes) - (totalDespesasPagas + totalDespesasPendentes);
+                return { itens: lista.sort((a, b) => a.dia - b.dia), totalDespesasPagas, totalDespesasPendentes, totalReceitasPagas, totalReceitasPendentes, saldo };
+            }, [dividas, recebimentos, pagamentos, recebimentoStatus, viewDate, isDataLoading]);
+
+
+            const lifetimeMovimentacoes = useMemo(() => {
+                if (isDataLoading) return { totalRealizado: 0, allMovimentacoes: [] };
+                
+                const today = new Date();
+                const currentMonth = today.getMonth() + 1;
+                const currentYear = today.getFullYear();
+                
+                let totalRealizado = 0;
+                const allMovimentacoes = [];
+
+                const processMovimentos = (items, statusMap, type) => {
+                    items.forEach(item => {
+                        for (let i = 0; i < item.parcelas; i++) {
+                            const statusKey = getStatusKey(item.id, i);
+                            const isStatusSet = !!statusMap[statusKey];
+                            
+                            let parcelYear = item.anoInicio;
+                            let parcelMonth = item.mesInicio + i;
+                            while (parcelMonth > 12) { parcelMonth -= 12; parcelYear += 1; }
+
+                            const isDue = getMonthDifference(parcelMonth, parcelYear, currentMonth, currentYear) >= 0;
+
+                            if (isDue && isStatusSet) {
+                                totalRealizado += (type === 'recebimento' ? item.valor : -item.valor);
+                            }
+                            
+                            allMovimentacoes.push({
+                                ...item, tipo: type, valor: item.valor, parcelaAtual: i + 1,
+                                parcelaAno: parcelYear, parcelaMes: parcelMonth, chaveStatus: statusKey,
+                                estaPago: isStatusSet, isDue
+                            });
+                        }
+                    });
+                };
+                
+                processMovimentos(dividas, pagamentos, 'divida');
+                processMovimentos(recebimentos, recebimentoStatus, 'recebimento');
+
+                allMovimentacoes.sort((a, b) => {
+                    if (a.parcelaAno !== b.parcelaAno) return a.parcelaAno - b.parcelaAno;
+                    if (a.parcelaMes !== b.parcelaMes) return a.parcelaMes - b.parcelaMes;
+                    return a.dia - b.dia;
+                });
+
+                return { totalRealizado, allMovimentacoes };
+
+            }, [dividas, recebimentos, pagamentos, recebimentoStatus, isDataLoading]);
+
+
+            const { itens, totalDespesasPagas, totalDespesasPendentes, totalReceitasPagas, totalReceitasPendentes, saldo } = movimentacoesDoMes;
+
+            // --- Renderização do Calendário ---
+            const renderCalendarDays = () => {
+                const year = viewDate.getFullYear();
+                const month = viewDate.getMonth();
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const days = [];
+
+                for (let i = 0; i < firstDay; i++) {
+                    days.push(<div key={`empty-${i}`} className="h-24 bg-gray-50/50 border border-gray-100"></div>);
+                }
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const contasDoDia = itens.filter(i => i.dia === d);
+                    const isToday = new Date().getDate() === d && new Date().getMonth() === month && new Date().getFullYear() === year;
+
+                    days.push(
+                        <div key={d} className={`h-24 border border-gray-100 p-1 relative hover:bg-white transition-colors overflow-hidden group ${isToday ? 'bg-primary-light/10' : 'bg-white'}`}>
+                            <span className={`text-sm font-semibold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary-dark text-white' : 'text-gray-500'}`}>{d}</span>
+                            <div className="mt-1 flex flex-col gap-1 overflow-y-auto max-h-[calc(100%-24px)] custom-scrollbar">
+                                {contasDoDia.map((conta) => {
+                                    const isReceita = conta.tipo === 'recebimento';
+                                    const isPendente = !conta.estaPago;
+                                    
+                                    let statusClass = '';
+                                    if (isReceita) {
+                                        statusClass = isPendente 
+                                            ? 'bg-accent-yellow/30 border-accent-yellow/50 text-primary-dark font-medium' 
+                                            : 'bg-green-100 border-green-200 text-green-700 line-through opacity-90';
+                                    } else {
+                                        statusClass = isPendente 
+                                            ? 'bg-red-50 border-red-100 text-red-700 font-medium' 
+                                            : 'bg-gray-100 border-gray-200 text-gray-500 line-through opacity-70';
+                                    }
+                                    
+                                    return (
+                                        <div key={conta.chaveStatus} 
+                                            onClick={() => toggleStatus(conta.chaveStatus, conta.tipo)}
+                                            className={`text-[10px] px-1 py-0.5 rounded border truncate cursor-pointer select-none ${statusClass}`}
+                                            title={`${isReceita ? 'Receita' : 'Despesa'} ${conta.nome} - R$ ${conta.valor}`}>
+                                            {conta.nome}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                }
+                return days;
+            };
+
+            // --- Componente CalendarioView (Corpo da Página) ---
+            const CalendarioView = () => (
+                <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+                    {/* Resumo ATUALIZADO (Saldo, Receitas, Despesas) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* Card 1: Saldo Líquido do Mês */}
+                        <div className={`p-4 rounded-xl border shadow-sm ${saldo >= 0 ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
+                            <span className="text-gray-500 text-xs font-medium uppercase">Saldo do Mês</span>
+                            <div className="text-2xl font-bold mt-1" style={{ color: saldo >= 0 ? '#10B981' : '#EF4444' }}>
+                                R$ {saldo.toFixed(2)}
+                            </div>
+                        </div>
+                        
+                        {/* Card 2: Total Receitas */}
+                        <div className="bg-white p-4 rounded-xl border border-primary-light/40 shadow-sm">
+                            <span className="text-primary-dark text-xs font-medium uppercase">Total Receitas</span>
+                            <div className="text-2xl font-bold text-primary-dark mt-1">R$ {(totalReceitasPagas + totalReceitasPendentes).toFixed(2)}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                <span className="text-green-600">Recebidos: R$ {totalReceitasPagas.toFixed(2)}</span> | 
+                                <span className="text-accent-yellow ml-1">Pendentes: R$ {totalReceitasPendentes.toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Total Despesas */}
+                        <div className="bg-white p-4 rounded-xl border border-red-100 shadow-sm">
+                            <span className="text-red-500 text-xs font-medium uppercase">Total Despesas</span>
+                            <div className="text-2xl font-bold text-red-600 mt-1">R$ {(totalDespesasPagas + totalDespesasPendentes).toFixed(2)}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                <span className="text-gray-500">Pagos: R$ {totalDespesasPagas.toFixed(2)}</span> | 
+                                <span className="text-red-500 ml-1">Pendentes: R$ {totalDespesasPendentes.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Calendário */}
+                        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200"><h2 className="font-semibold text-gray-700 flex items-center gap-2"><Icon name="calendar" size={16}/> Visão Mensal</h2></div>
+                            <div className="grid grid-cols-7 text-center bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 py-2">
+                                <div>DOM</div><div>SEG</div><div>TER</div><div>QUA</div><div>QUI</div><div>SEX</div><div>SÁB</div>
+                            </div>
+                            <div className="grid grid-cols-7 bg-gray-100 gap-px border-b border-gray-200">{renderCalendarDays()}</div>
+                        </div>
+
+                        {/* Lista de Movimentações do Mês */}
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-[500px]">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200"><h2 className="font-semibold text-gray-700">Movimentações do Mês</h2></div>
+                            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                {itens.length === 0 ? <div className="text-center py-10 text-gray-400 text-sm">Nenhuma movimentação.</div> : 
+                                itens.map(conta => {
+                                    const isReceita = conta.tipo === 'recebimento';
+                                    const isPago = conta.estaPago;
+                                    
+                                    let colorClass = isReceita 
+                                        ? (isPago ? 'text-green-600' : 'text-primary-dark')
+                                        : (isPago ? 'text-gray-400 line-through' : 'text-red-700');
+                                    
+                                    let statusText = isReceita 
+                                        ? (isPago ? 'Recebido' : 'A Receber') 
+                                        : (isPago ? 'Pago' : 'A Pagar');
+                                    
+                                    return (
+                                        <div key={conta.chaveStatus} className="group bg-white border border-gray-100 rounded-lg p-3 hover:shadow-md transition-shadow flex items-start gap-3">
+                                            <button onClick={() => toggleStatus(conta.chaveStatus, conta.tipo)} className={`mt-1 ${isPago ? 'text-green-500' : 'text-gray-300 hover:text-primary-light'}`}>
+                                                <Icon name={isPago ? "check-circle" : "circle"} size={20}/>
+                                            </button>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-start">
+                                                    <span className={`font-medium text-sm truncate ${colorClass}`}>{conta.nome}</span>
+                                                    <span className={`text-sm font-semibold whitespace-nowrap ${colorClass}`}>R$ {Number(conta.valor).toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center mt-1 text-xs text-gray-500">
+                                                    <span>Dia {conta.dia} ({statusText})</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{conta.parcelaAtual}/{conta.parcelas}</span>
+                                                        <button onClick={() => excluirDivida(conta.id, conta.tipo)} className="text-gray-300 hover:text-red-500"><Icon name="trash-2" size={14}/></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            );
+            
+            // --- RENDERIZAÇÃO CONDICIONAL ---
+            
+            if (!isAuthReady) {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
+                        <Icon name="loader-2" size={48} className="text-primary-dark animate-spin mb-4" />
+                        <p className="text-gray-600">Carregando autenticação...</p>
+                    </div>
+                );
+            }
+            
+            if (!user) {
+                return <AuthScreen />;
+            }
+
+
+            // Renderização da Tela de Carregamento de Dados (Após Login)
+            if (isDataLoading) {
+                 return (
+                    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
+                        <Icon name="loader-2" size={48} className="text-primary-dark animate-spin mb-4" />
+                        <p className="text-gray-600">Carregando dados financeiros de {sharedAccessId}...</p>
+                    </div>
+                );
+            }
+
+
+            // --- Renderização Principal (Navbar e Roteamento) ---
+            return (
+                <div className="min-h-screen pb-20">
+                    {/* Navbar */}
+                    <nav className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+                        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+                            
+                            {/* 🎨 Logo e Nome */}
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 rounded-lg bg-primary-dark shadow-md">
+                                    {/* LOGO MENOR NA NAVBAR (utiliza o caminho externo) */}
+                                    <img 
+                                        src={LOGO_URL} 
+                                        alt="Logo Commit JR" 
+                                        className="w-6 h-6 object-contain"
+                                        onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/0B375B/FFFFFF?text=JR"; }}
+                                    />
+                                    {/* FIM LOGO */}
+                                </div>
+                                <h1 className="font-bold text-xl tracking-tight hidden sm:block text-slate-800">Sistema Financeiro <span className="text-primary-dark">Commit JR</span></h1>
+                            </div>
+
+                            {/* 🔄 Navegação Principal */}
+                            <div className="flex items-center gap-2 bg-gray-100 rounded-full p-1">
+                                <button 
+                                    onClick={() => setView('calendario')} 
+                                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-1 ${view === 'calendario' ? 'bg-primary-dark text-white shadow-md' : 'text-gray-600 hover:bg-white'}`}>
+                                    <Icon name="calendar" size={16}/> Calendário
+                                </button>
+                                <button 
+                                    onClick={() => setView('planilha')} 
+                                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-1 ${view === 'planilha' ? 'bg-primary-dark text-white shadow-md' : 'text-gray-600 hover:bg-white'}`}>
+                                    <Icon name="layout-list" size={16}/> Planilha
+                                </button>
+                            </div>
+                            
+                            {/* 🗓 Botões de Ação Específicos da View */}
+                            <div className="flex items-center gap-4">
+                                
+                                {/* Configuração do ID de Acesso */}
+                                <SharedIdInput sharedAccessId={sharedAccessId} setSharedAccessId={setSharedAccessId} />
+
+                                {view === 'calendario' ? (
+                                    <div className="flex items-center gap-4 bg-gray-100 rounded-full p-1 pr-4 hidden md:flex">
+                                        <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-white rounded-full shadow-sm"><Icon name="chevron-left" className="text-gray-600"/></button>
+                                        <span className="font-semibold w-32 text-center text-sm text-gray-700">{viewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
+                                        <button onClick={() => changeMonth(1)} className="p-1.5 hover:bg-white rounded-full shadow-sm"><Icon name="chevron-right" className="text-gray-600"/></button>
+                                    </div>
+                                ) : (
+                                    <div className="w-16 hidden md:block"></div>
+                                )}
+                                
+                                <button onClick={() => setShowModal(true)} className="bg-primary-dark hover:bg-primary-light text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-sm">
+                                    <Icon name="plus" size={16} className="text-white"/> <span className="hidden sm:inline">Nova Conta</span>
+                                </button>
+
+                                <button onClick={() => auth.signOut()} title="Sair" className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+                                    <Icon name="log-out" size={20}/>
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Conteúdo Renderizado com Base no Estado 'view' */}
+                    {view === 'calendario' && <CalendarioView />}
+                    {view === 'planilha' && (
+                        <main className="max-w-5xl mx-auto px-4 py-6">
+                            <PlanilhaView 
+                                movimentacoes={lifetimeMovimentacoes} 
+                                excluirDivida={excluirDivida} 
+                                toggleStatus={toggleStatus}
+                                isDataLoading={isDataLoading}
+                            />
+                        </main>
+                    )}
+
+                    {/* Modal (Adicionar Conta) */}
+                    {showModal && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+                                <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                                    <h3 className="font-bold text-lg text-gray-800">Nova Movimentação</h3>
+                                    <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                                </div>
+                                <form onSubmit={handleAddConta} className="p-6 space-y-4">
+                                    
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Movimentação</label>
+                                        <select required className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-primary-light" value={newConta.tipo} onChange={e => setNewConta({...newConta, tipo: e.target.value})}>
+                                            <option value="divida">Despesa (A Pagar)</option>
+                                            <option value="recebimento">Receita (A Receber)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label><input required className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-primary-light" value={newConta.nome} onChange={e => setNewConta({...newConta, nome: e.target.value})} placeholder="Ex: Internet ou Salário"/></div>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Valor</label><input required type="number" step="0.01" className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-primary-light" value={newConta.valor} onChange={e => setNewConta({...newConta, valor: e.target.value})}/></div>
+                                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Dia</label><input required type="number" min="1" max="31" className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-primary-light" value={newConta.dia} onChange={e => setNewConta({...newConta, dia: e.target.value})}/></div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4 bg-primary-light/10 p-4 rounded-lg border border-primary-light/20">
+                                        <div><label className="block text-xs font-bold text-primary-dark mb-1">Parcelas</label><input type="number" min="1" className="w-full px-2 py-1 border border-primary-light/40 rounded text-sm" value={newConta.parcelas} onChange={e => setNewConta({...newConta, parcelas: e.target.value})}/></div>
+                                        <div><label className="block text-xs font-bold text-primary-dark mb-1">Mês Início</label><input type="number" min="1" max="12" className="w-full px-2 py-1 border border-primary-light/40 rounded text-sm" value={newConta.mesInicio} onChange={e => setNewConta({...newConta, mesInicio: e.target.value})}/></div>
+                                        <div><label className="block text-xs font-bold text-primary-dark mb-1">Ano Início</label><input type="number" className="w-full px-2 py-1 border border-primary-light/40 rounded text-sm" value={newConta.anoInicio} onChange={e => setNewConta({...newConta, anoInicio: e.target.value})}/></div>
+                                    </div>
+                                    <div className="pt-2 flex gap-3">
+                                        <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">Cancelar</button>
+                                        <button type="submit" className="flex-1 px-4 py-2 bg-primary-dark text-white rounded-lg hover:bg-primary-light">Salvar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
